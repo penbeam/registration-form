@@ -1379,6 +1379,78 @@
                             <div class="validation-message" id="genderValidation" role="alert" aria-live="polite"></div>
                         </div>
 
+                        <!-- New Fields: Blood Group, Mother Tongue, Disability, Allergies -->
+                        <div class="form-group">
+                            <label for="bloodGroup" class="form-label">Blood Group</label>
+                            <select id="bloodGroup" name="bloodGroup" class="form-control">
+                                <option value="">Select Blood Group</option>
+                                <option value="A+">A+</option>
+                                <option value="A-">A-</option>
+                                <option value="B+">B+</option>
+                                <option value="B-">B-</option>
+                                <option value="AB+">AB+</option>
+                                <option value="AB-">AB-</option>
+                                <option value="O+">O+</option>
+                                <option value="O-">O-</option>
+                                <option value="unknown">Unknown</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="motherTongue" class="form-label">Mother Tongue</label>
+                            <input type="text" id="motherTongue" name="motherTongue" class="form-control" placeholder="e.g., Urdu, English, Punjabi">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="disability" class="form-label">Disability (if any)</label>
+                            <select id="disability" name="disability" class="form-control">
+                                <option value="">No Disability</option>
+                                <option value="autism">Autism Spectrum Disorder</option>
+                                <option value="adhd">Attention Deficit Hyperactivity Disorder (ADHD)</option>
+                                <option value="dyslexia">Dyslexia</option>
+                                <option value="dyscalculia">Dyscalculia</option>
+                                <option value="hearing_impairment">Hearing Impairment</option>
+                                <option value="visual_impairment">Visual Impairment</option>
+                                <option value="speech_disorder">Speech Disorder</option>
+                                <option value="cerebral_palsy">Cerebral Palsy</option>
+                                <option value="down_syndrome">Down Syndrome</option>
+                                <option value="learning_disability">Learning Disability</option>
+                                <option value="other">Other</option>
+                            </select>
+                            
+                            <div class="dynamic-field" id="disabilityOtherField">
+                                <div class="form-group">
+                                    <label for="disabilityOther" class="form-label">Specify Disability</label>
+                                    <input type="text" id="disabilityOther" name="disabilityOther" class="form-control" placeholder="Please specify the disability">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="allergies" class="form-label">Allergies (if any)</label>
+                            <select id="allergies" name="allergies" class="form-control">
+                                <option value="">No Allergies</option>
+                                <option value="peanut">Peanut Allergy</option>
+                                <option value="dairy">Dairy/Lactose Intolerance</option>
+                                <option value="egg">Egg Allergy</option>
+                                <option value="gluten">Gluten Intolerance/Celiac</option>
+                                <option value="shellfish">Shellfish Allergy</option>
+                                <option value="soy">Soy Allergy</option>
+                                <option value="tree_nut">Tree Nut Allergy</option>
+                                <option value="wheat">Wheat Allergy</option>
+                                <option value="fish">Fish Allergy</option>
+                                <option value="bee_sting">Bee Sting Allergy</option>
+                                <option value="other">Other</option>
+                            </select>
+                            
+                            <div class="dynamic-field" id="allergiesOtherField">
+                                <div class="form-group">
+                                    <label for="allergiesOther" class="form-label">Specify Allergy</label>
+                                    <input type="text" id="allergiesOther" name="allergiesOther" class="form-control" placeholder="Please specify the allergy">
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Additional Student Information -->
                         <div class="form-group">
                             <label for="caste" class="form-label">Caste (Optional)</label>
@@ -1640,6 +1712,23 @@
                             <span class="review-label">Mobile Number</span>
                             <span class="review-value" id="review-mobile">--</span>
                         </div>
+                        <!-- New Review Items -->
+                        <div class="review-item">
+                            <span class="review-label">Blood Group</span>
+                            <span class="review-value" id="review-blood-group">--</span>
+                        </div>
+                        <div class="review-item">
+                            <span class="review-label">Mother Tongue</span>
+                            <span class="review-value" id="review-mother-tongue">--</span>
+                        </div>
+                        <div class="review-item">
+                            <span class="review-label">Disability</span>
+                            <span class="review-value" id="review-disability">--</span>
+                        </div>
+                        <div class="review-item">
+                            <span class="review-label">Allergies</span>
+                            <span class="review-value" id="review-allergies">--</span>
+                        </div>
                     </div>
 
                     <div class="form-group full-width">
@@ -1756,6 +1845,9 @@
                 // Initialize date picker functionality
                 initDatePicker();
                 
+                // Initialize new dynamic fields for disabilities and allergies
+                initDynamicFields();
+                
                 // Log initialization time
                 const initTime = performance.now() - startTime;
                 console.log(`System initialized in ${initTime.toFixed(2)}ms`);
@@ -1822,6 +1914,43 @@
                 
                 // Set default placeholder to show date format
                 dobInput.setAttribute('placeholder', 'YYYY-MM-DD');
+            }
+            
+            // ===== INITIALIZE DYNAMIC FIELDS FOR NEW ADDITIONS =====
+            function initDynamicFields() {
+                // Disability field dynamic behavior
+                const disabilitySelect = document.getElementById('disability');
+                const disabilityOtherField = document.getElementById('disabilityOtherField');
+                
+                disabilitySelect.addEventListener('change', function() {
+                    if (this.value === 'other') {
+                        disabilityOtherField.classList.add('show');
+                        setTimeout(() => {
+                            document.getElementById('disabilityOther').focus();
+                        }, 300);
+                    } else {
+                        disabilityOtherField.classList.remove('show');
+                        // Clear other field if not selected
+                        document.getElementById('disabilityOther').value = '';
+                    }
+                });
+                
+                // Allergies field dynamic behavior
+                const allergiesSelect = document.getElementById('allergies');
+                const allergiesOtherField = document.getElementById('allergiesOtherField');
+                
+                allergiesSelect.addEventListener('change', function() {
+                    if (this.value === 'other') {
+                        allergiesOtherField.classList.add('show');
+                        setTimeout(() => {
+                            document.getElementById('allergiesOther').focus();
+                        }, 300);
+                    } else {
+                        allergiesOtherField.classList.remove('show');
+                        // Clear other field if not selected
+                        document.getElementById('allergiesOther').value = '';
+                    }
+                });
             }
             
             // ===== FORM NAVIGATION =====
@@ -2306,7 +2435,60 @@
                     'review-father-name': () => document.getElementById('fatherName').value || '--',
                     'review-mother-name': () => document.getElementById('motherName').value || '--',
                     'review-email': () => document.getElementById('primaryEmail').value || '--',
-                    'review-mobile': () => document.getElementById('primaryMobile').value || '--'
+                    'review-mobile': () => document.getElementById('primaryMobile').value || '--',
+                    // New review fields
+                    'review-blood-group': () => {
+                        const bloodGroup = document.getElementById('bloodGroup').value;
+                        return bloodGroup || '--';
+                    },
+                    'review-mother-tongue': () => {
+                        const motherTongue = document.getElementById('motherTongue').value;
+                        return motherTongue || '--';
+                    },
+                    'review-disability': () => {
+                        const disability = document.getElementById('disability').value;
+                        if (!disability) return 'None';
+                        if (disability === 'other') {
+                            const other = document.getElementById('disabilityOther').value;
+                            return other || 'Other (Not Specified)';
+                        }
+                        // Convert value to readable text
+                        const disabilityMap = {
+                            'autism': 'Autism Spectrum Disorder',
+                            'adhd': 'Attention Deficit Hyperactivity Disorder (ADHD)',
+                            'dyslexia': 'Dyslexia',
+                            'dyscalculia': 'Dyscalculia',
+                            'hearing_impairment': 'Hearing Impairment',
+                            'visual_impairment': 'Visual Impairment',
+                            'speech_disorder': 'Speech Disorder',
+                            'cerebral_palsy': 'Cerebral Palsy',
+                            'down_syndrome': 'Down Syndrome',
+                            'learning_disability': 'Learning Disability'
+                        };
+                        return disabilityMap[disability] || disability;
+                    },
+                    'review-allergies': () => {
+                        const allergies = document.getElementById('allergies').value;
+                        if (!allergies) return 'None';
+                        if (allergies === 'other') {
+                            const other = document.getElementById('allergiesOther').value;
+                            return other || 'Other (Not Specified)';
+                        }
+                        // Convert value to readable text
+                        const allergiesMap = {
+                            'peanut': 'Peanut Allergy',
+                            'dairy': 'Dairy/Lactose Intolerance',
+                            'egg': 'Egg Allergy',
+                            'gluten': 'Gluten Intolerance/Celiac',
+                            'shellfish': 'Shellfish Allergy',
+                            'soy': 'Soy Allergy',
+                            'tree_nut': 'Tree Nut Allergy',
+                            'wheat': 'Wheat Allergy',
+                            'fish': 'Fish Allergy',
+                            'bee_sting': 'Bee Sting Allergy'
+                        };
+                        return allergiesMap[allergies] || allergies;
+                    }
                 };
                 
                 Object.entries(fields).forEach(([id, getValue]) => {
@@ -2401,6 +2583,11 @@
                         // Reset phone prefixes
                         document.querySelectorAll('.phone-prefix').forEach(prefix => {
                             prefix.classList.remove('hidden');
+                        });
+                        
+                        // Reset dynamic fields
+                        document.querySelectorAll('.dynamic-field').forEach(field => {
+                            field.classList.remove('show');
                         });
                         
                         // Re-enable form
