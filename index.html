@@ -2446,49 +2446,49 @@
                         return motherTongue || '--';
                     },
                     'review-disability': () => {
-                        const disability = document.getElementById('disability').value;
-                        if (!disability) return 'None';
-                        if (disability === 'other') {
-                            const other = document.getElementById('disabilityOther').value;
-                            return other || 'Other (Not Specified)';
-                        }
-                        // Convert value to readable text
-                        const disabilityMap = {
-                            'autism': 'Autism Spectrum Disorder',
-                            'adhd': 'Attention Deficit Hyperactivity Disorder (ADHD)',
-                            'dyslexia': 'Dyslexia',
-                            'dyscalculia': 'Dyscalculia',
-                            'hearing_impairment': 'Hearing Impairment',
-                            'visual_impairment': 'Visual Impairment',
-                            'speech_disorder': 'Speech Disorder',
-                            'cerebral_palsy': 'Cerebral Palsy',
-                            'down_syndrome': 'Down Syndrome',
-                            'learning_disability': 'Learning Disability'
-                        };
-                        return disabilityMap[disability] || disability;
-                    },
-                    'review-allergies': () => {
-                        const allergies = document.getElementById('allergies').value;
-                        if (!allergies) return 'None';
-                        if (allergies === 'other') {
-                            const other = document.getElementById('allergiesOther').value;
-                            return other || 'Other (Not Specified)';
-                        }
-                        // Convert value to readable text
-                        const allergiesMap = {
-                            'peanut': 'Peanut Allergy',
-                            'dairy': 'Dairy/Lactose Intolerance',
-                            'egg': 'Egg Allergy',
-                            'gluten': 'Gluten Intolerance/Celiac',
-                            'shellfish': 'Shellfish Allergy',
-                            'soy': 'Soy Allergy',
-                            'tree_nut': 'Tree Nut Allergy',
-                            'wheat': 'Wheat Allergy',
-                            'fish': 'Fish Allergy',
-                            'bee_sting': 'Bee Sting Allergy'
-                        };
-                        return allergiesMap[allergies] || allergies;
-                    }
+                         const disability = document.getElementById('disability').value;
+                         if (!disability || disability === '') return 'None';
+                         if (disability === 'other') {
+                         const other = document.getElementById('disabilityOther').value;
+                         return other || 'None';  // CHANGED from 'Other (Not Specified)' to 'None'
+                  }
+                  // Convert value to readable text
+                  const disabilityMap = {
+                       'autism': 'Autism Spectrum Disorder',
+                       'adhd': 'Attention Deficit Hyperactivity Disorder (ADHD)',
+                       'dyslexia': 'Dyslexia',
+                       'dyscalculia': 'Dyscalculia',
+                       'hearing_impairment': 'Hearing Impairment',
+                       'visual_impairment': 'Visual Impairment',
+                       'speech_disorder': 'Speech Disorder',
+                       'cerebral_palsy': 'Cerebral Palsy',
+                       'down_syndrome': 'Down Syndrome',
+                       'learning_disability': 'Learning Disability'
+               };
+                       return disabilityMap[disability] || disability;
+               },
+              'review-allergies': () => {
+                       const allergies = document.getElementById('allergies').value;
+                       if (!allergies || allergies === '') return 'None';
+                       if (allergies === 'other') {
+                       const other = document.getElementById('allergiesOther').value;
+                       return other || 'None';  // CHANGED from 'Other (Not Specified)' to 'None'
+               }
+              // Convert value to readable text
+                      const allergiesMap = {
+                     'peanut': 'Peanut Allergy',
+                     'dairy': 'Dairy/Lactose Intolerance',
+                     'egg': 'Egg Allergy',
+                     'gluten': 'Gluten Intolerance/Celiac',
+                     'shellfish': 'Shellfish Allergy',
+                     'soy': 'Soy Allergy',
+                     'tree_nut': 'Tree Nut Allergy',
+                     'wheat': 'Wheat Allergy',
+                     'fish': 'Fish Allergy',
+                     'bee_sting': 'Bee Sting Allergy'
+          };
+                      return allergiesMap[allergies] || allergies;
+          }
                 };
                 
                 Object.entries(fields).forEach(([id, getValue]) => {
@@ -2558,7 +2558,7 @@
                     `;
                     
                     announceToScreenReader('Registration submitted successfully. Registration ID: ' + registrationId);
-                    alert(successMessage);
+                    // alert(successMessage);
                     
                     // Reset form after delay
                     setTimeout(() => {
