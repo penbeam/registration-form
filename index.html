@@ -2534,71 +2534,128 @@
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
                 submitBtn.setAttribute('aria-busy', 'true');
                 
-                // Simulate API call
-                setTimeout(() => {
-                    // Success response
-                    const registrationId = 'REG-' + Date.now().toString().slice(-8);
-                    
-                    submitBtn.innerHTML = '<i class="fas fa-check"></i> Registration Successful!';
-                    submitBtn.style.background = 'var(--accent-success)';
-                    
-                    // Update system stats
-                    updateSystemStats(true);
-                    
-                    // Show success message
-                    const email = document.getElementById('primaryEmail').value;
-                    const successMessage = `
-                        Registration submitted successfully!
-                        
-                        Registration ID: ${registrationId}
-                        Student: ${document.getElementById('firstName').value} ${document.getElementById('lastName').value}
-                        Class: ${document.getElementById('classApplied').value}
-                        
-                        A confirmation email has been sent to ${email}
-                    `;
-                    
-                    announceToScreenReader('Registration submitted successfully. Registration ID: ' + registrationId);
-                    // alert(successMessage);
-                    
-                    // Reset form after delay
-                    setTimeout(() => {
-                        document.getElementById('enterpriseRegistrationForm').reset();
-                        currentStep = 1;
-                        updateNavigation();
-                        
-                        submitBtn.innerHTML = originalText;
-                        submitBtn.style.background = '';
-                        submitBtn.setAttribute('aria-busy', 'false');
-                        
-                        // Reset file upload
-                        const fileUploadArea = document.getElementById('photoUploadArea');
-                        fileUploadArea.innerHTML = `
-                            <div class="file-upload-icon">
-                                <i class="fas fa-cloud-upload-alt"></i>
-                            </div>
-                            <div class="file-upload-text">Click or drag to upload student photo</div>
-                            <div class="file-upload-subtext">JPG or PNG format, maximum 2MB</div>
-                        `;
-                        
-                        // Reset phone prefixes
-                        document.querySelectorAll('.phone-prefix').forEach(prefix => {
-                            prefix.classList.remove('hidden');
-                        });
-                        
-                        // Reset dynamic fields
-                        document.querySelectorAll('.dynamic-field').forEach(field => {
-                            field.classList.remove('show');
-                        });
-                        
-                        // Re-enable form
-                        document.querySelectorAll('input, select, textarea, button').forEach(el => {
-                            el.disabled = false;
-                        });
-                        
-                        // Focus on first input
-                        document.getElementById('firstName').focus();
-                    }, 3000);
-                }, 2000);
+                // COLLECT ALL FORM DATA
+const formDataObject = {
+    // === STUDENT INFORMATION ===
+    firstName: document.getElementById('firstName')?.value || '',
+    lastName: document.getElementById('lastName')?.value || '',
+    dob: document.getElementById('dob')?.value || '',
+    gender: document.querySelector('input[name="gender"]:checked')?.value || '',
+    bloodGroup: document.getElementById('bloodGroup')?.value || '',
+    motherTongue: document.getElementById('motherTongue')?.value || '',
+    disability: document.getElementById('disability')?.value || '',
+    disabilityOther: document.getElementById('disabilityOther')?.value || '',
+    allergies: document.getElementById('allergies')?.value || '',
+    allergiesOther: document.getElementById('allergiesOther')?.value || '',
+    caste: document.getElementById('caste')?.value || '',
+    placeOfBirth: document.getElementById('placeOfBirth')?.value || '',
+    bForm: document.getElementById('bForm')?.value || '',
+    nationality: document.getElementById('nationality')?.value || '',
+    religion: document.getElementById('religion')?.value || '',
+    classApplied: document.getElementById('classApplied')?.value || '',
+    lastSchoolAttended: document.querySelector('input[name="lastSchoolAttended"]:checked')?.value || '',
+    lastSchoolName: document.getElementById('lastSchoolName')?.value || '',
+    grNumber: document.getElementById('grNumber')?.value || '',
+    photoUpload: document.getElementById('photoUpload')?.files[0]?.name || '',
+    
+    // === PARENT INFORMATION ===
+    fatherName: document.getElementById('fatherName')?.value || '',
+    fatherCnic: document.getElementById('fatherCnic')?.value || '',
+    fatherOccupation: document.getElementById('fatherOccupation')?.value || '',
+    motherName: document.getElementById('motherName')?.value || '',
+    motherCnic: document.getElementById('motherCnic')?.value || '',
+    motherOccupation: document.getElementById('motherOccupation')?.value || '',
+    
+    // === CONTACT DETAILS ===
+    primaryEmail: document.getElementById('primaryEmail')?.value || '',
+    primaryMobile: document.getElementById('primaryMobile')?.value || '',
+    whatsappNumber: document.getElementById('whatsappNumber')?.value || '',
+    emergencyContact: document.getElementById('emergencyContact')?.value || '',
+    currentAddress: document.getElementById('currentAddress')?.value || '',
+    permanentAddress: document.getElementById('permanentAddress')?.value || ''
+};
+
+// DISABLE SUBMIT BUTTON
+submitBtn.disabled = true;
+submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+
+// SEND TO GOOGLE APPS SCRIPT
+fetch('YOUR_GOOGLE_APPS_SCRIPT_URL_HERE', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(formDataObject)
+})
+.then(response => {
+    if (!response.ok) {
+        throw new Error('Network response was not ok');
+    }
+    return response.json();
+})
+.then(data => {
+    if (data.success) {
+        // SUCCESS!
+        submitBtn.innerHTML = '<i class="fas fa-check"></i> Registration Successful!';
+        submitBtn.style.background = 'var(--accent-success)';
+        
+        // Announce success
+        announceToScreenReader('Registration submitted successfully');
+        
+        // Show success message (NO POPUP)
+        const studentName = document.getElementById('firstName')?.value + ' ' + document.getElementById('lastName')?.value;
+        
+        // Reset form after 3 seconds
+        setTimeout(() => {
+            document.getElementById('enterpriseRegistrationForm').reset();
+            currentStep = 1;
+            updateNavigation();
+            
+            // Reset file upload
+            const fileUploadArea = document.getElementById('photoUploadArea');
+            if (fileUploadArea) {
+                fileUploadArea.innerHTML = `
+                    <div class="file-upload-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </div>
+                    <div class="file-upload-text">Click or drag to upload student photo</div>
+                    <div class="file-upload-subtext">JPG or PNG format, maximum 2MB</div>
+                `;
+            }
+            
+            // Reset phone prefixes
+            document.querySelectorAll('.phone-prefix').forEach(prefix => {
+                prefix.classList.remove('hidden');
+            });
+            
+            // Reset dynamic fields
+            document.querySelectorAll('.dynamic-field').forEach(field => {
+                field.classList.remove('show');
+            });
+            
+            // Re-enable form
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Registration';
+            submitBtn.style.background = '';
+            
+            // Focus on first input
+            setTimeout(() => {
+                document.getElementById('firstName')?.focus();
+            }, 100);
+            
+        }, 3000);
+    } else {
+        throw new Error(data.message || 'Submission failed');
+    }
+})
+.catch(error => {
+    console.error('Error:', error);
+    submitBtn.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error! Try Again';
+    submitBtn.style.background = 'var(--accent-danger)';
+    submitBtn.disabled = false;
+    
+    announceToScreenReader('Submission failed. Please try again.');
+});
             }
             
             // ===== ACCESSIBILITY =====
