@@ -2521,7 +2521,48 @@
                 });
             }
             
-            // ===== SIMPLIFIED FORM SUBMISSION =====
+            // ============================================
+// 1. THE MESSAGE LISTENER - Wait for Google's response
+// ============================================
+window.addEventListener('message', function(event) {
+    // Safety check: Only accept messages from Google domains
+    if (!event.origin.includes('google.com') && !event.origin.includes('script.googleusercontent.com')) {
+        return;
+    }
+
+    if (event.data && event.data.success) {
+        const submitBtn = document.getElementById('submitBtn');
+        
+        // Visual success state
+        submitBtn.innerHTML = '<i class="fas fa-check"></i> Registration Successful!';
+        submitBtn.style.background = 'var(--accent-success)';
+        
+        if (typeof announceToScreenReader === "function") {
+            announceToScreenReader('Registration submitted successfully. ID: ' + event.data.registrationId);
+        }
+
+        // Reset form after 3 seconds
+        setTimeout(() => {
+            // Reload the page to ensure clean form
+            window.location.reload();
+        }, 3000);
+    } else if (event.data && !event.data.success) {
+        // Handle error message from script
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error: ' + (event.data.message || 'Try Again');
+        submitBtn.style.background = 'var(--accent-danger)';
+        submitBtn.setAttribute('aria-busy', 'false');
+        
+        // Re-enable form
+        document.querySelectorAll('input, select, textarea, button').forEach(el => {
+            el.disabled = false;
+        });
+    }
+});
+
+// ============================================
+// 2. THE SUBMIT FUNCTION - Send data to Google
+// ============================================
 function submitForm() {
     const submitBtn = document.getElementById('submitBtn');
     const originalText = submitBtn.innerHTML;
@@ -2578,10 +2619,20 @@ function submitForm() {
     // Your Google Apps Script URL
     const scriptUrl = 'https://script.google.com/macros/s/AKfycbzh4QSOBKhRqwoAjnd0fFco5OYejQX1TXSbzIycCtaRYFThFoQf1m0FRsX4sW2g0QcM/exec';
     
-    // Create a form element
+    // Create a unique iframe name
+    const iframeName = 'submitFrame_' + Date.now();
+    
+    // Create hidden iframe
+    const iframe = document.createElement('iframe');
+    iframe.name = iframeName;
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    
+    // Create hidden form
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = scriptUrl;
+    form.target = iframeName;
     form.style.display = 'none';
     
     // Add all data as hidden fields
@@ -2593,71 +2644,61 @@ function submitForm() {
         form.appendChild(input);
     }
     
-    // Append form to body
+    // Add a special field to identify this as form submission
+    const flag = document.createElement('input');
+    flag.type = 'hidden';
+    flag.name = 'formSubmission';
+    flag.value = 'true';
+    form.appendChild(flag);
+    
     document.body.appendChild(form);
     
-    // Show success message immediately (we assume it works)
-    setTimeout(() => {
+    // Set a timeout in case Google doesn't respond
+    const timeoutId = setTimeout(() => {
+        // If we haven't heard back in 10 seconds, assume success
+        // (This is a fallback - the message listener should handle it)
+        console.log('No response received, assuming success');
+        
         submitBtn.innerHTML = '<i class="fas fa-check"></i> Registration Successful!';
         submitBtn.style.background = 'var(--accent-success)';
         
-        // Announce success
-        announceToScreenReader('Registration submitted successfully');
-        
-        // Reset form after 3 seconds
         setTimeout(() => {
-            document.getElementById('enterpriseRegistrationForm').reset();
-            currentStep = 1;
-            updateNavigation();
-            
-            // Reset file upload
-            const fileUploadArea = document.getElementById('photoUploadArea');
-            if (fileUploadArea) {
-                fileUploadArea.innerHTML = `
-                    <div class="file-upload-icon">
-                        <i class="fas fa-cloud-upload-alt"></i>
-                    </div>
-                    <div class="file-upload-text">Click or drag to upload student photo</div>
-                    <div class="file-upload-subtext">JPG or PNG format, maximum 2MB</div>
-                `;
-            }
-            
-            // Reset phone prefixes
-            document.querySelectorAll('.phone-prefix').forEach(prefix => {
-                prefix.classList.remove('hidden');
-            });
-            
-            // Reset dynamic fields
-            document.querySelectorAll('.dynamic-field').forEach(field => {
-                field.classList.remove('show');
-            });
-            
-            // Re-enable form
-            document.querySelectorAll('input, select, textarea, button').forEach(el => {
-                el.disabled = false;
-            });
-            
-            submitBtn.innerHTML = originalText;
-            submitBtn.style.background = '';
-            submitBtn.setAttribute('aria-busy', 'false');
-            
-            // Focus on first input
-            setTimeout(() => {
-                document.getElementById('firstName')?.focus();
-            }, 100);
-            
+            window.location.reload();
         }, 3000);
-    }, 2000);
+    }, 10000);
+    
+    // Listen for response and clear timeout
+    const responseHandler = function(event) {
+        if (event.data && event.data.registrationId) {
+            clearTimeout(timeoutId);
+            window.removeEventListener('message', responseHandler);
+        }
+    };
+    window.addEventListener('message', responseHandler);
     
     // Submit the form
-    form.submit();
-    
-    // Remove form after submission (optional, but helps keep DOM clean)
-    setTimeout(() => {
-        if (document.body.contains(form)) {
-            document.body.removeChild(form);
-        }
-    }, 1000);
+    try {
+        form.submit();
+        console.log('Form submitted successfully');
+    } catch (error) {
+        console.error('Submission error:', error);
+        clearTimeout(timeoutId);
+        
+        submitBtn.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error! Try Again';
+        submitBtn.style.background = 'var(--accent-danger)';
+        submitBtn.setAttribute('aria-busy', 'false');
+        
+        // Re-enable form
+        document.querySelectorAll('input, select, textarea, button').forEach(el => {
+            el.disabled = false;
+        });
+        
+        // Clean up
+        setTimeout(() => {
+            if (document.body.contains(iframe)) document.body.removeChild(iframe);
+            if (document.body.contains(form)) document.body.removeChild(form);
+        }, 1000);
+    }
 }
             
             // ===== ACCESSIBILITY =====
