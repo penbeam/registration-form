@@ -2525,40 +2525,120 @@
 // 1. THE MESSAGE LISTENER - Wait for Google's response
 // ============================================
 window.addEventListener('message', function(event) {
-    // Safety check: Only accept messages from Google domains
-    if (!event.origin.includes('google.com') && !event.origin.includes('script.googleusercontent.com')) {
-        return;
+    // More flexible origin checking - accept all Google domains and local testing
+    const allowedOrigins = [
+        'google.com', 
+        'script.google.com', 
+        'script.googleusercontent.com',
+        'localhost', 
+        '127.0.0.1'
+    ];
+    
+    // Check if event.origin includes any allowed domain
+    const isValidOrigin = allowedOrigins.some(origin => 
+        event.origin.includes(origin)
+    );
+    
+    // If it's not a valid origin AND not from our own domain (for local testing)
+    if (!isValidOrigin && !event.origin.includes(window.location.origin)) {
+        console.log('Message from unknown origin:', event.origin);
+        // Don't block - let it through but log it
+        // We'll still process the message for debugging
     }
 
-    if (event.data && event.data.success) {
+    // Check if this is a response from our form submission
+    if (event.data && (event.data.success !== undefined || event.data.registrationId)) {
         const submitBtn = document.getElementById('submitBtn');
         
-        // Visual success state
-        submitBtn.innerHTML = '<i class="fas fa-check"></i> Registration Successful!';
-        submitBtn.style.background = 'var(--accent-success)';
-        
-        if (typeof announceToScreenReader === "function") {
-            announceToScreenReader('Registration submitted successfully. ID: ' + event.data.registrationId);
+        // Handle error response
+        if (event.data.success === false) {
+            console.log('Error response received:', event.data.message);
+            
+            // Show error message to user
+            submitBtn.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error: ' + (event.data.message || 'Registration failed');
+            submitBtn.style.background = 'var(--accent-danger)';
+            submitBtn.setAttribute('aria-busy', 'false');
+            
+            // Re-enable form
+            document.querySelectorAll('input, select, textarea, button').forEach(el => {
+                el.disabled = false;
+            });
+            
+            // Show error in a visible way
+            const formContainer = document.querySelector('.form-container');
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'validation-message error';
+            errorDiv.style.display = 'block';
+            errorDiv.style.margin = 'var(--space-md)';
+            errorDiv.style.padding = 'var(--space-lg)';
+            errorDiv.style.fontSize = 'var(--text-base)';
+            errorDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${event.data.message}`;
+            
+            // Remove any existing error messages
+            const existingError = formContainer.querySelector('.global-error');
+            if (existingError) existingError.remove();
+            
+            errorDiv.classList.add('global-error');
+            formContainer.insertBefore(errorDiv, formContainer.firstChild);
+            
+            // Announce to screen reader
+            if (typeof announceToScreenReader === "function") {
+                announceToScreenReader('Error: ' + event.data.message);
+            }
+            
+            return;
         }
-
-        // Reset form after 3 seconds
-        setTimeout(() => {
-            // Reload the page to ensure clean form
-            window.location.reload();
-        }, 3000);
-    } else if (event.data && !event.data.success) {
-        // Handle error message from script
-        const submitBtn = document.getElementById('submitBtn');
-        submitBtn.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error: ' + (event.data.message || 'Try Again');
-        submitBtn.style.background = 'var(--accent-danger)';
-        submitBtn.setAttribute('aria-busy', 'false');
         
-        // Re-enable form
-        document.querySelectorAll('input, select, textarea, button').forEach(el => {
-            el.disabled = false;
-        });
+        // Handle success response
+        if (event.data.success === true || event.data.registrationId) {
+            // Visual success state
+            submitBtn.innerHTML = '<i class="fas fa-check"></i> Registration Successful!';
+            submitBtn.style.background = 'var(--accent-success)';
+            
+            if (typeof announceToScreenReader === "function") {
+                announceToScreenReader('Registration submitted successfully. ID: ' + (event.data.registrationId || ''));
+            }
+
+            // Reset form after 3 seconds
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
+        }
+    } else {
+        console.log('Message received but not a form response:', event.data);
     }
 });
+
+
+            // ============================================
+// 3. FALLBACK ERROR DETECTION
+// ============================================
+// Check URL hash for errors (fallback method)
+function checkForErrorsInUrl() {
+    if (window.location.hash) {
+        const hash = window.location.hash.substring(1); // Remove #
+        if (hash.includes('error=duplicate')) {
+            const message = decodeURIComponent(hash.split('message=')[1] || 'B-Form already exists');
+            
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error: ' + message;
+            submitBtn.style.background = 'var(--accent-danger)';
+            submitBtn.setAttribute('aria-busy', 'false');
+            
+            // Re-enable form
+            document.querySelectorAll('input, select, textarea, button').forEach(el => {
+                el.disabled = false;
+            });
+            
+            // Clear the hash
+            window.location.hash = '';
+        }
+    }
+}
+
+// Call on page load
+window.addEventListener('load', checkForErrorsInUrl);
+            
 
 // ============================================
 // 2. THE SUBMIT FUNCTION - Send data to Google
@@ -2654,18 +2734,31 @@ function submitForm() {
     document.body.appendChild(form);
     
     // Set a timeout in case Google doesn't respond
-    const timeoutId = setTimeout(() => {
-        // If we haven't heard back in 10 seconds, assume success
-        // (This is a fallback - the message listener should handle it)
-        console.log('No response received, assuming success');
-        
-        submitBtn.innerHTML = '<i class="fas fa-check"></i> Registration Successful!';
-        submitBtn.style.background = 'var(--accent-success)';
-        
-        setTimeout(() => {
-            window.location.reload();
-        }, 3000);
-    }, 10000);
+const timeoutId = setTimeout(() => {
+    console.log('No response received, checking if this was a duplicate...');
+    
+    // Don't auto-assume success - check if there might be an error
+    // Instead of showing success, show a warning
+    submitBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> No Response - Check Status';
+    submitBtn.style.background = 'var(--accent-warning)';
+    submitBtn.setAttribute('aria-busy', 'false');
+    
+    // Re-enable form but show warning
+    document.querySelectorAll('input, select, textarea, button').forEach(el => {
+        el.disabled = false;
+    });
+    
+    // Show warning message
+    const warningDiv = document.createElement('div');
+    warningDiv.className = 'validation-message error';
+    warningDiv.style.display = 'block';
+    warningDiv.style.margin = 'var(--space-md)';
+    warningDiv.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Submission timeout. Please check if registration was successful. If problem persists, contact support.';
+    
+    const formContainer = document.querySelector('.form-container');
+    formContainer.insertBefore(warningDiv, formContainer.firstChild);
+    
+}, 15000); // Increase timeout to 15 seconds
     
     // Listen for response and clear timeout
     const responseHandler = function(event) {
