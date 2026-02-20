@@ -2521,118 +2521,65 @@
                 });
             }
             
-            // ============================================
-// 1. THE MESSAGE LISTENER - Wait for Google's response (IMPROVED VERSION)
+          // ============================================
+// MESSAGE LISTENER - HANDLES ALL RESPONSES
 // ============================================
 window.addEventListener('message', function(event) {
-    // Safety check: Only accept messages from Google domains
+    // Safety check: Only accept messages from Google
     if (!event.origin.includes('google.com') && !event.origin.includes('script.googleusercontent.com')) {
         return;
     }
 
-    console.log('Message received from Google:', event.data); // Debug log
-    
-    const submitBtn = document.getElementById('submitBtn');
-    
-    // Check if we have data
-    if (!event.data) return;
-    
-    // Handle error messages (including duplicate B-Form)
-    if (event.data.error === true || event.data.success === false) {
-        // Show error message
-        const errorMessage = event.data.message || 'An error occurred. Please try again.';
+    // Check if this is our registration response
+    if (event.data && event.data.type === 'REGISTRATION_RESPONSE') {
+        const response = event.data;
+        const submitBtn = document.getElementById('submitBtn');
         
-        // Update button
-        submitBtn.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + errorMessage;
-        submitBtn.style.background = 'var(--accent-danger)';
-        submitBtn.setAttribute('aria-busy', 'false');
+        // IMPORTANT: Clear the timeout from submitForm
+        if (window.currentSubmitTimeout) {
+            clearTimeout(window.currentSubmitTimeout);
+        }
         
-        // Show error in a visible alert for the user
-        const errorAlert = document.createElement('div');
-        errorAlert.style.cssText = `
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: var(--accent-danger);
-            color: white;
-            padding: 16px 24px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            z-index: 9999;
-            font-weight: 500;
-            max-width: 90%;
-            text-align: center;
-        `;
-        errorAlert.innerHTML = `
-            <i class="fas fa-exclamation-circle" style="margin-right: 8px;"></i>
-            ${errorMessage}
-        `;
-        document.body.appendChild(errorAlert);
-        
-        // Re-enable form
-        document.querySelectorAll('input, select, textarea, button').forEach(el => {
-            el.disabled = false;
-        });
-        
-        // Remove error alert after 5 seconds
-        setTimeout(() => {
-            if (document.body.contains(errorAlert)) {
-                errorAlert.remove();
+        if (response.success) {
+            // ✅ SUCCESS!
+            submitBtn.innerHTML = '<i class="fas fa-check"></i> Registration Successful!';
+            submitBtn.style.background = 'var(--accent-success)';
+            
+            // Announce for screen readers
+            if (typeof announceToScreenReader === "function") {
+                announceToScreenReader('Registration submitted successfully');
             }
-        }, 5000);
-        
-        // Announce to screen reader
-        if (typeof announceToScreenReader === "function") {
-            announceToScreenReader('Error: ' + errorMessage);
+            
+            // Reset after 3 seconds
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
+        } else {
+            // ❌ ERROR (like duplicate)
+            submitBtn.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + response.message;
+            submitBtn.style.background = 'var(--accent-danger)';
+            
+            // Announce error
+            if (typeof announceToScreenReader === "function") {
+                announceToScreenReader(response.message);
+            }
+            
+            // Re-enable the form
+            document.querySelectorAll('input, select, textarea, button').forEach(el => {
+                el.disabled = false;
+            });
+            
+            // Reset button after 5 seconds
+            setTimeout(() => {
+                submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Registration';
+                submitBtn.style.background = '';
+            }, 5000);
         }
-        
-        return;
     }
-    
-    // Handle success
-    if (event.data && event.data.success === true) {
-        // Visual success state
-        submitBtn.innerHTML = '<i class="fas fa-check"></i> Registration Successful! ID: ' + (event.data.registrationId || '');
-        submitBtn.style.background = 'var(--accent-success)';
-        
-        // Show success alert
-        const successAlert = document.createElement('div');
-        successAlert.style.cssText = `
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: var(--accent-success);
-            color: white;
-            padding: 16px 24px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            z-index: 9999;
-            font-weight: 500;
-            max-width: 90%;
-            text-align: center;
-        `;
-        successAlert.innerHTML = `
-            <i class="fas fa-check-circle" style="margin-right: 8px;"></i>
-            Registration Successful! ID: ${event.data.registrationId || ''}
-        `;
-        document.body.appendChild(successAlert);
-        
-        if (typeof announceToScreenReader === "function") {
-            announceToScreenReader('Registration submitted successfully. ID: ' + event.data.registrationId);
-        }
-
-        // Reset form after 3 seconds
-        setTimeout(() => {
-            // Reload the page to ensure clean form
-            window.location.reload();
-        }, 3000);
-    }
-});
+}, false);
 
 // ============================================
-// 2. THE SUBMIT FUNCTION - Send data to Google (IMPROVED VERSION)
+// 2. THE SUBMIT FUNCTION - Send data to Google
 // ============================================
 function submitForm() {
     const submitBtn = document.getElementById('submitBtn');
@@ -2724,16 +2671,16 @@ function submitForm() {
     
     document.body.appendChild(form);
     
-    // Set a timeout in case Google doesn't respond
+    // ⚠️ IMPORTANT CHANGE: Remove the old responseHandler
+    // We'll let our main message listener handle everything
+    
+    // Set a timeout for fallback (in case Google never responds)
     const timeoutId = setTimeout(() => {
-        console.log('No response received from Google, checking manually...');
+        console.log('⚠️ No response from server after 15 seconds');
         
-        // Remove the timeout handler
-        window.removeEventListener('message', responseHandler);
-        
-        // Show a warning but don't assume success
-        submitBtn.innerHTML = '<i class="fas fa-exclamation-circle"></i> No response from server';
-        submitBtn.style.background = 'var(--accent-warning)';
+        // Show a timeout message - don't assume success!
+        submitBtn.innerHTML = '<i class="fas fa-exclamation-circle"></i> Server Not Responding';
+        submitBtn.style.background = 'var(--accent-danger)';
         submitBtn.setAttribute('aria-busy', 'false');
         
         // Re-enable form
@@ -2743,19 +2690,15 @@ function submitForm() {
         
         // Clean up
         setTimeout(() => {
+            submitBtn.innerHTML = originalText;
+            submitBtn.style.background = '';
             if (document.body.contains(iframe)) document.body.removeChild(iframe);
             if (document.body.contains(form)) document.body.removeChild(form);
-        }, 1000);
-    }, 15000); // 15 second timeout
+        }, 3000);
+    }, 15000); // Increased to 15 seconds
     
-    // Listen for response and clear timeout
-    const responseHandler = function(event) {
-        if (event.data && (event.data.registrationId || event.data.error)) {
-            clearTimeout(timeoutId);
-            window.removeEventListener('message', responseHandler);
-        }
-    };
-    window.addEventListener('message', responseHandler);
+    // Store timeout ID globally so message listener can clear it
+    window.currentSubmitTimeout = timeoutId;
     
     // Submit the form
     try {
@@ -2764,7 +2707,6 @@ function submitForm() {
     } catch (error) {
         console.error('Submission error:', error);
         clearTimeout(timeoutId);
-        window.removeEventListener('message', responseHandler);
         
         submitBtn.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error! Try Again';
         submitBtn.style.background = 'var(--accent-danger)';
@@ -2777,6 +2719,8 @@ function submitForm() {
         
         // Clean up
         setTimeout(() => {
+            submitBtn.innerHTML = originalText;
+            submitBtn.style.background = '';
             if (document.body.contains(iframe)) document.body.removeChild(iframe);
             if (document.body.contains(form)) document.body.removeChild(form);
         }, 1000);
