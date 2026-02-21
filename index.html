@@ -2097,11 +2097,10 @@
             }
 
 
-           // ===== B-FORM DUPLICATE CHECK - IMPROVED VERSION =====
+           // ===== B-FORM DUPLICATE CHECK - WORKING VERSION =====
 function initBFormCheck() {
     const bFormInput = document.getElementById('bForm');
     const nextBtn = document.getElementById('nextBtn');
-    const submitBtn = document.getElementById('submitBtn');
     
     // Create validation message container if it doesn't exist
     let validationContainer = document.getElementById('bFormValidation');
@@ -2137,115 +2136,144 @@ function initBFormCheck() {
         }
     }
     
-    // Function to check B-Form using fetch API
-    async function checkBFormWithFetch(bForm) {
+    // Function to check B-Form using fetch with CORS proxy
+    async function checkBForm(bForm) {
         // Your Google Apps Script Web App URL
         const scriptUrl = 'https://script.google.com/macros/s/AKfycbxzU9QK8Yzv48fRFJda-gGttcKLNG0kKIj77F_QAMtJqwuVOLu0toq48nyI0fvwm80T/exec';
-         
+        
         try {
             // Show checking state
             validationContainer.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking B-Form...';
             validationContainer.className = 'validation-message';
             bFormInput.classList.remove('error', 'success');
             
-            // Use fetch with no-cors mode to avoid CORS issues
-            const response = await fetch(`${scriptUrl}?action=checkBForm&bForm=${encodeURIComponent(bForm)}`, {
-                method: 'GET',
-                mode: 'no-cors', // This helps with CORS but has limitations
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            });
-            
-            // With no-cors, we can't read the response directly
-            // So we need to use a different approach - JSONP
-            
-            // Fallback to JSONP method
-            checkBFormWithJSONP(bForm);
+            // Create a hidden iframe approach (most reliable for Google Scripts)
+            checkBFormWithIframe(bForm);
             
         } catch (error) {
-            console.error('Fetch error:', error);
-            // Fallback to JSONP
-            checkBFormWithJSONP(bForm);
+            console.error('Check error:', error);
+            showNetworkError();
         }
     }
     
-    // JSONP method (more reliable for cross-domain requests)
-    function checkBFormWithJSONP(bForm) {
+    // Iframe method - Most reliable for Google Apps Script
+    function checkBFormWithIframe(bForm) {
         // Your Google Apps Script Web App URL
         const scriptUrl = 'https://script.google.com/macros/s/AKfycbxzU9QK8Yzv48fRFJda-gGttcKLNG0kKIj77F_QAMtJqwuVOLu0toq48nyI0fvwm80T/exec';
         
-        // Create a unique callback name
-        const callbackName = 'bform_callback_' + Date.now();
+        // Create a unique ID for this request
+        const requestId = 'bform_check_' + Date.now();
         
-        // Create a script element for JSONP
-        const script = document.createElement('script');
+        // Create a hidden iframe
+        const iframe = document.createElement('iframe');
+        iframe.id = requestId;
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
         
-        // Define callback function
-        window[callbackName] = function(data) {
-            // Clean up
-            document.body.removeChild(script);
-            delete window[callbackName];
-            
-            console.log('B-Form check result:', data);
-            
-            if (data && data.exists === true) {
-                // B-Form already exists - ERROR
-                validationContainer.innerHTML = '<i class="fas fa-times-circle"></i> ' + (data.message || 'This B-Form is already registered');
-                validationContainer.className = 'validation-message error';
-                bFormInput.classList.add('error');
-                bFormInput.classList.remove('success');
-                isBFormValid = false;
-                lastCheckedBForm = bForm;
+        // Create a form inside the iframe
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+        iframeDoc.open();
+        iframeDoc.write(`
+            <html>
+            <body>
+                <form id="checkForm" method="GET" action="${scriptUrl}">
+                    <input type="hidden" name="action" value="checkBForm">
+                    <input type="hidden" name="bForm" value="${bForm}">
+                </form>
+                <script>
+                    document.getElementById('checkForm').submit();
+                    
+                    // Listen for response from Google Script
+                    window.addEventListener('message', function(event) {
+                        if (event.data && event.data.exists !== undefined) {
+                            window.parent.postMessage({
+                                type: 'bform-check',
+                                requestId: '${requestId}',
+                                data: event.data
+                            }, '*');
+                        }
+                    });
+                    
+                    // Also try to get response from URL hash
+                    if (window.location.hash) {
+                        try {
+                            const data = JSON.parse(decodeURIComponent(window.location.hash.substring(1)));
+                            window.parent.postMessage({
+                                type: 'bform-check',
+                                requestId: '${requestId}',
+                                data: data
+                            }, '*');
+                        } catch(e) {}
+                    }
+                <\/script>
+            </body>
+            </html>
+        `);
+        iframeDoc.close();
+        
+        // Set up message listener for this request
+        const messageHandler = function(event) {
+            if (event.data && event.data.type === 'bform-check' && event.data.requestId === requestId) {
+                // Remove listener and iframe
+                window.removeEventListener('message', messageHandler);
+                setTimeout(() => {
+                    if (document.getElementById(requestId)) {
+                        document.body.removeChild(document.getElementById(requestId));
+                    }
+                }, 1000);
                 
-                // Announce for screen readers
-                if (typeof announceToScreenReader === 'function') {
-                    announceToScreenReader('This B-Form is already registered. You cannot proceed.');
+                // Process the response
+                const result = event.data.data;
+                console.log('B-Form check result:', result);
+                
+                if (result && result.exists === true) {
+                    // B-Form already exists - ERROR
+                    validationContainer.innerHTML = '<i class="fas fa-times-circle"></i> ' + (result.message || 'This B-Form is already registered');
+                    validationContainer.className = 'validation-message error';
+                    bFormInput.classList.add('error');
+                    bFormInput.classList.remove('success');
+                    isBFormValid = false;
+                    lastCheckedBForm = bForm;
+                } else if (result && result.exists === false) {
+                    // B-Form available - SUCCESS
+                    validationContainer.innerHTML = '<i class="fas fa-check-circle"></i> ' + (result.message || 'B-Form is available');
+                    validationContainer.className = 'validation-message success';
+                    bFormInput.classList.add('success');
+                    bFormInput.classList.remove('error');
+                    isBFormValid = true;
+                    lastCheckedBForm = bForm;
+                } else {
+                    showNetworkError();
                 }
-            } else if (data && data.exists === false) {
-                // B-Form available - SUCCESS
-                validationContainer.innerHTML = '<i class="fas fa-check-circle"></i> ' + (data.message || 'B-Form is available');
-                validationContainer.className = 'validation-message success';
-                bFormInput.classList.add('success');
-                bFormInput.classList.remove('error');
-                isBFormValid = true;
-                lastCheckedBForm = bForm;
-            } else {
-                // Error or unexpected response
-                validationContainer.innerHTML = '<i class="fas fa-exclamation-circle"></i> Could not verify B-Form. Please try again.';
-                validationContainer.className = 'validation-message error';
-                bFormInput.classList.add('error');
-                bFormInput.classList.remove('success');
-                isBFormValid = false;
+                
+                // Update next button
+                updateNextButtonState();
+            }
+        };
+        
+        window.addEventListener('message', messageHandler);
+        
+        // Set timeout in case of no response
+        setTimeout(() => {
+            window.removeEventListener('message', messageHandler);
+            if (document.getElementById(requestId)) {
+                document.body.removeChild(document.getElementById(requestId));
             }
             
-            // Update next button
-            updateNextButtonState();
-        };
-        
-        // Handle errors
-        script.onerror = function() {
-            document.body.removeChild(script);
-            delete window[callbackName];
-            
-            validationContainer.innerHTML = '<i class="fas fa-exclamation-circle"></i> Network error. Please check your connection.';
-            validationContainer.className = 'validation-message error';
-            bFormInput.classList.add('error');
-            bFormInput.classList.remove('success');
-            isBFormValid = false;
-            updateNextButtonState();
-            
-            console.error('JSONP script error - network issue');
-        };
-        
-        // Build URL with parameters
-        const url = scriptUrl + 
-                   '?action=checkBForm' +
-                   '&bForm=' + encodeURIComponent(bForm) +
-                   '&callback=' + callbackName;
-        
-        script.src = url;
-        document.body.appendChild(script);
+            // If we haven't gotten a response yet, show error
+            if (lastCheckedBForm !== bForm) {
+                showNetworkError();
+                updateNextButtonState();
+            }
+        }, 10000); // 10 second timeout
+    }
+    
+    function showNetworkError() {
+        validationContainer.innerHTML = '<i class="fas fa-exclamation-circle"></i> Could not verify B-Form. Please try again.';
+        validationContainer.className = 'validation-message error';
+        bFormInput.classList.add('error');
+        bFormInput.classList.remove('success');
+        isBFormValid = false;
     }
     
     // Main input event handler
@@ -2292,11 +2320,12 @@ function initBFormCheck() {
         
         // Wait 500ms after user stops typing, then check
         checkTimeout = setTimeout(function() {
-            checkBFormWithJSONP(bForm); // Use JSONP method
+            checkBForm(bForm);
         }, 500);
     });
     
     // Override the next button click for Step 1
+    const originalNextHandler = nextBtn.onclick;
     nextBtn.addEventListener('click', function(e) {
         const activeSection = document.querySelector('.form-section.active');
         
@@ -2317,19 +2346,15 @@ function initBFormCheck() {
                     announceToScreenReader('Cannot proceed: This B-Form is already registered');
                 }
                 
-                // Don't trigger the original next button handler
                 return false;
             }
         }
-        
-        // Let the original handler run
-        return true;
-    }, true); // Use capturing to ensure this runs first
+    }, true);
     
     // Initial update
     updateNextButtonState();
     
-    console.log('B-Form check initialized');
+    console.log('B-Form check initialized with iframe method');
 }
 
 // Call this function in your DOMContentLoaded
