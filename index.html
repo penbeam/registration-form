@@ -1463,11 +1463,16 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="bForm" class="form-label">B-Form Number</label>
-                            <div class="input-group">
-                                <input type="text" id="bForm" name="bForm" class="form-control" placeholder="XXXXX-XXXXXXX-X" pattern="\d{5}-\d{7}-\d">
-                            </div>
-                        </div>
+    <label for="bForm" class="form-label">B-Form Number</label>
+    <div class="input-group" style="position: relative;">
+        <input type="text" id="bForm" name="bForm" class="form-control" 
+               placeholder="XXXXX-XXXXXXX-X" pattern="\d{5}-\d{7}-\d">
+        <span id="bFormStatus" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%);">
+            <!-- Status icon will appear here -->
+        </span>
+    </div>
+    <div id="bFormMessage" class="validation-message"></div>
+</div>
 
                         <div class="form-group">
                             <label for="nationality" class="form-label">Nationality</label>
@@ -1847,6 +1852,9 @@
                 
                 // Initialize new dynamic fields for disabilities and allergies
                 initDynamicFields();
+
+                // B-Form Pre check
+                initBFormChecker();
                 
                 // Log initialization time
                 const initTime = performance.now() - startTime;
@@ -2829,6 +2837,88 @@ function submitForm() {
                 uptimeEl.textContent = '99.9%';
                 securityEl.textContent = 'A+';
             }
+
+
+            // ============================================
+// B-FORM DUPLICATE CHECKER
+// ============================================
+function initBFormChecker() {
+    const bFormInput = document.getElementById('bForm');
+    const bFormStatus = document.getElementById('bFormStatus');
+    const bFormMessage = document.getElementById('bFormMessage');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    // Your Google Apps ScriptURL
+    const CHECKER_URL = 'https://script.google.com/macros/s/AKfycbxzU9QK8Yzv48fRFJda-gGttcKLNG0kKIj77F_QAMtJqwuVOLu0toq48nyI0fvwm80T/exec';
+    
+    let checkTimeout;
+    
+    bFormInput.addEventListener('input', function() {
+        // Clear previous timeout
+        clearTimeout(checkTimeout);
+        
+        // Clear previous status
+        bFormStatus.innerHTML = '';
+        bFormMessage.innerHTML = '';
+        bFormMessage.className = 'validation-message';
+        
+        // Enable submit button (will disable if duplicate found)
+        if (submitBtn) submitBtn.disabled = false;
+    });
+    
+    bFormInput.addEventListener('blur', function() {
+        const bForm = this.value.trim();
+        
+        // Check if B-Form is empty or invalid format
+        if (!bForm) {
+            return;
+        }
+        
+        // Show loading indicator
+        bFormStatus.innerHTML = '<i class="fas fa-spinner fa-spin" style="color: #8b949e;"></i>';
+        
+        // Set timeout to avoid too many requests
+        checkTimeout = setTimeout(() => {
+            // Call Google Script to check B-Form
+            fetch(`${CHECKER_URL}?bForm=${encodeURIComponent(bForm)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.exists) {
+                        // B-Form already exists - show error
+                        bFormStatus.innerHTML = '<i class="fas fa-times-circle" style="color: #cf222e;"></i>';
+                        bFormMessage.innerHTML = '<i class="fas fa-exclamation-circle"></i> This B-Form number is already registered';
+                        bFormMessage.className = 'validation-message error';
+                        
+                        // Disable submit button
+                        if (submitBtn) submitBtn.disabled = true;
+                    } else {
+                        // B-Form is available - show success
+                        bFormStatus.innerHTML = '<i class="fas fa-check-circle" style="color: #1a7f37;"></i>';
+                        bFormMessage.innerHTML = '<i class="fas fa-check-circle"></i> B-Form is available';
+                        bFormMessage.className = 'validation-message success';
+                        
+                        // Enable submit button
+                        if (submitBtn) submitBtn.disabled = false;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking B-Form:', error);
+                    bFormStatus.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: #9a6700;"></i>';
+                    bFormMessage.innerHTML = '<i class="fas fa-exclamation-circle"></i> Could not verify B-Form';
+                    bFormMessage.className = 'validation-message error';
+                    
+                    // Allow submission anyway (fallback)
+                    if (submitBtn) submitBtn.disabled = false;
+                });
+        }, 500); // Wait 500ms after user stops typing
+    });
+}
+
+// Call this function when page loads
+// Add this line inside your DOMContentLoaded event (around line 360)
+// initBFormChecker();
+
+            
         })();
     </script>
 </body>
