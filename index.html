@@ -1253,18 +1253,6 @@
                 color: black !important;
             }
         }
-
-        .form-control.error {
-    border-color: var(--accent-danger);
-    background-color: rgba(207, 34, 46, 0.05);
-}
-
-.form-control.error:focus {
-    box-shadow: 0 0 0 3px rgba(207, 34, 46, 0.1);
-}
-
-
-        
     </style>
 </head>
 <body itemscope itemtype="https://schema.org/WebPage">
@@ -1475,16 +1463,11 @@
                         </div>
 
                         <div class="form-group">
-    <label for="bForm" class="form-label">B-Form Number</label>
-    <div class="input-group" style="position: relative;">
-        <input type="text" id="bForm" name="bForm" class="form-control" 
-               placeholder="XXXXX-XXXXXXX-X" pattern="\d{5}-\d{7}-\d">
-        <span id="bFormStatus" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%);">
-            <!-- Status icon will appear here -->
-        </span>
-    </div>
-    <div id="bFormMessage" class="validation-message"></div>
-</div>
+                            <label for="bForm" class="form-label">B-Form Number</label>
+                            <div class="input-group">
+                                <input type="text" id="bForm" name="bForm" class="form-control" placeholder="XXXXX-XXXXXXX-X" pattern="\d{5}-\d{7}-\d">
+                            </div>
+                        </div>
 
                         <div class="form-group">
                             <label for="nationality" class="form-label">Nationality</label>
@@ -1865,8 +1848,8 @@
                 // Initialize new dynamic fields for disabilities and allergies
                 initDynamicFields();
 
-                // B-Form duplicate check call
-                initBFormChecker();
+                // B-From duplicate check function call
+                initBFormCheck(); 
                 
                 // Log initialization time
                 const initTime = performance.now() - startTime;
@@ -1989,86 +1972,17 @@
                 updateNavigation();
                 
                 // Next button click
-nextBtn.addEventListener('click', function() {
-    // First validate all fields in current step
-    if (!validateCurrentStep()) {
-        announceToScreenReader('Please fix validation errors before proceeding');
-        return;
-    }
-    
-    // SPECIAL CHECK: If on Step 1, verify B-Form is not duplicate
-    if (currentStep === 1) {
-        const bForm = document.getElementById('bForm').value.trim();
-        
-        // Skip check if B-Form is empty (will be caught by validation)
-        if (!bForm) {
-            announceToScreenReader('Please enter B-Form number');
-            return;
-        }
-        
-        // Show loading state on next button
-        const originalText = nextBtn.innerHTML;
-        nextBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
-        nextBtn.disabled = true;
-        
-        // Call your B-Form checker
-        const CHECKER_URL = 'YOUR_NEW_DEPLOYMENT_URL_HERE';
-        
-        fetch(`${CHECKER_URL}?bForm=${encodeURIComponent(bForm)}`)
-            .then(response => response.json())
-            .then(data => {
-                // Reset button
-                nextBtn.innerHTML = originalText;
-                nextBtn.disabled = false;
-                
-                if (data.exists) {
-                    // DUPLICATE FOUND - Show error and STAY on Step 1
-                    const bFormStatus = document.getElementById('bFormStatus');
-                    const bFormMessage = document.getElementById('bFormMessage');
-                    
-                    if (bFormStatus) {
-                        bFormStatus.innerHTML = '<i class="fas fa-times-circle" style="color: #cf222e;"></i>';
+                nextBtn.addEventListener('click', function() {
+                    if (validateCurrentStep()) {
+                        if (currentStep < totalSteps) {
+                            currentStep++;
+                            updateNavigation();
+                            announceToScreenReader(`Step ${currentStep}: ${getStepTitle(currentStep)}`);
+                        }
+                    } else {
+                        announceToScreenReader('Please fix validation errors before proceeding');
                     }
-                    if (bFormMessage) {
-                        bFormMessage.innerHTML = '<i class="fas fa-exclamation-circle"></i> This B-Form is already registered. You cannot proceed.';
-                        bFormMessage.className = 'validation-message error';
-                    }
-                    
-                    announceToScreenReader('Duplicate B-Form detected. You cannot continue registration.');
-                    
-                    // Add error class to B-Form field
-                    document.getElementById('bForm').classList.add('error');
-                } else {
-                    // UNIQUE - Allow navigation to next step
-                    if (currentStep < totalSteps) {
-                        currentStep++;
-                        updateNavigation();
-                        announceToScreenReader(`Step ${currentStep}: ${getStepTitle(currentStep)}`);
-                    }
-                }
-            })
-            .catch(error => {
-                console.error('Error checking B-Form:', error);
-                nextBtn.innerHTML = originalText;
-                nextBtn.disabled = false;
-                
-                // On error, allow navigation (fallback)
-                if (currentStep < totalSteps) {
-                    currentStep++;
-                    updateNavigation();
-                }
-                
-                announceToScreenReader('Could not verify B-Form. Proceeding to next step.');
-            });
-    } else {
-        // Not Step 1 - normal navigation
-        if (currentStep < totalSteps) {
-            currentStep++;
-            updateNavigation();
-            announceToScreenReader(`Step ${currentStep}: ${getStepTitle(currentStep)}`);
-        }
-    }
-});
+                });
                 
                 // Previous button click
                 prevBtn.addEventListener('click', function() {
@@ -2181,6 +2095,238 @@ nextBtn.addEventListener('click', function() {
                     }
                 });
             }
+
+
+            // ===== B-FORM DUPLICATE CHECK =====
+function initBFormCheck() {
+    const bFormInput = document.getElementById('bForm');
+    const nextBtn = document.getElementById('nextBtn');
+    
+    // Get the current step variable (it's defined in your existing code)
+    // We need to access it from the outer scope
+    let currentStep;
+    let totalSteps;
+    
+    // Try to get these variables from the existing code
+    // This is a bit hacky but will work for now
+    const steps = document.querySelectorAll('.progress-step');
+    totalSteps = steps.length;
+    
+    // Create validation message container if it doesn't exist
+    let validationContainer = document.getElementById('bFormValidation');
+    if (!validationContainer) {
+        validationContainer = document.createElement('div');
+        validationContainer.id = 'bFormValidation';
+        validationContainer.className = 'validation-message';
+        bFormInput.parentNode.appendChild(validationContainer);
+    }
+    
+    // Track check state
+    let isBFormValid = true;
+    let checkTimeout = null;
+    
+    // Function to update next button state
+    function updateNextButton() {
+        // Get current step from the active section
+        const activeSection = document.querySelector('.form-section.active');
+        if (activeSection && activeSection.id === 'step-1-section') {
+            if (!isBFormValid && bFormInput.value.trim() !== '') {
+                nextBtn.disabled = true;
+                nextBtn.title = 'Cannot proceed: B-Form already exists';
+                nextBtn.style.opacity = '0.5';
+                nextBtn.style.cursor = 'not-allowed';
+            } else {
+                nextBtn.disabled = false;
+                nextBtn.title = '';
+                nextBtn.style.opacity = '1';
+                nextBtn.style.cursor = 'pointer';
+            }
+        }
+    }
+    
+    // Check B-Form when user types
+    bFormInput.addEventListener('input', function() {
+        // Clear previous timeout
+        if (checkTimeout) {
+            clearTimeout(checkTimeout);
+        }
+        
+        const bForm = this.value.trim();
+        
+        // Clear validation if empty
+        if (!bForm) {
+            validationContainer.innerHTML = '';
+            validationContainer.className = 'validation-message';
+            bFormInput.classList.remove('error', 'success');
+            isBFormValid = true;
+            updateNextButton();
+            return;
+        }
+        
+        // Check format first
+        const bFormPattern = /^\d{5}-\d{7}-\d$/;
+        if (!bFormPattern.test(bForm)) {
+            validationContainer.innerHTML = '<i class="fas fa-exclamation-circle"></i> Format: XXXXX-XXXXXXX-X';
+            validationContainer.className = 'validation-message error';
+            bFormInput.classList.add('error');
+            bFormInput.classList.remove('success');
+            isBFormValid = false;
+            updateNextButton();
+            return;
+        }
+        
+        // Show checking indicator
+        validationContainer.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking B-Form...';
+        validationContainer.className = 'validation-message';
+        bFormInput.classList.remove('error', 'success');
+        
+        // Wait 500ms after user stops typing, then check
+        checkTimeout = setTimeout(function() {
+            checkBFormDuplicate(bForm);
+        }, 500);
+    });
+    
+    // Function to check duplicate
+    function checkBFormDuplicate(bForm) {
+        // Your Google Apps Script Web App URL (use the same one from your form)
+        const scriptUrl = 'https://script.google.com/macros/s/AKfycbxzU9QK8Yzv48fRFJda-gGttcKLNG0kKIj77F_QAMtJqwuVOLu0toq48nyI0fvwm80T/exec';
+        
+        // Create a unique callback name
+        const callbackName = 'bform_callback_' + Date.now();
+        
+        // Create a script element for JSONP (this avoids CORS issues)
+        const script = document.createElement('script');
+        
+        // Define callback function
+        window[callbackName] = function(data) {
+            // Clean up
+            document.body.removeChild(script);
+            delete window[callbackName];
+            
+            console.log('B-Form check result:', data);
+            
+            if (data && data.exists === true) {
+                // B-Form already exists - ERROR
+                validationContainer.innerHTML = '<i class="fas fa-times-circle"></i> ' + (data.message || 'This B-Form is already registered');
+                validationContainer.className = 'validation-message error';
+                bFormInput.classList.add('error');
+                bFormInput.classList.remove('success');
+                isBFormValid = false;
+                
+                // Announce for screen readers
+                if (typeof announceToScreenReader === 'function') {
+                    announceToScreenReader('This B-Form is already registered. You cannot proceed.');
+                }
+            } else if (data && data.exists === false) {
+                // B-Form available - SUCCESS
+                validationContainer.innerHTML = '<i class="fas fa-check-circle"></i> ' + (data.message || 'B-Form is available');
+                validationContainer.className = 'validation-message success';
+                bFormInput.classList.add('success');
+                bFormInput.classList.remove('error');
+                isBFormValid = true;
+            } else {
+                // Error or unexpected response
+                validationContainer.innerHTML = '<i class="fas fa-exclamation-circle"></i> Could not verify B-Form. Please try again.';
+                validationContainer.className = 'validation-message error';
+                bFormInput.classList.add('error');
+                bFormInput.classList.remove('success');
+                isBFormValid = false;
+            }
+            
+            // Update next button
+            updateNextButton();
+        };
+        
+        // Handle errors
+        script.onerror = function() {
+            document.body.removeChild(script);
+            delete window[callbackName];
+            
+            validationContainer.innerHTML = '<i class="fas fa-exclamation-circle"></i> Network error. Please check your connection.';
+            validationContainer.className = 'validation-message error';
+            bFormInput.classList.add('error');
+            bFormInput.classList.remove('success');
+            isBFormValid = false;
+            updateNextButton();
+        };
+        
+        // Build URL with parameters
+        const url = scriptUrl + 
+                   '?action=checkBForm' +
+                   '&bForm=' + encodeURIComponent(bForm) +
+                   '&callback=' + callbackName;
+        
+        script.src = url;
+        document.body.appendChild(script);
+    }
+    
+    // Override the next button click for Step 1
+    const originalNextHandler = nextBtn.onclick;
+    nextBtn.addEventListener('click', function(e) {
+        // Find current step
+        const activeSection = document.querySelector('.form-section.active');
+        
+        // If we're on step 1 and B-Form is invalid, prevent moving forward
+        if (activeSection && activeSection.id === 'step-1-section') {
+            const bForm = bFormInput.value.trim();
+            
+            if (bForm && !isBFormValid) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                validationContainer.innerHTML = '<i class="fas fa-exclamation-circle"></i> Cannot proceed: This B-Form is already registered';
+                validationContainer.className = 'validation-message error';
+                bFormInput.classList.add('error');
+                
+                if (typeof announceToScreenReader === 'function') {
+                    announceToScreenReader('Cannot proceed: This B-Form is already registered');
+                }
+                return false;
+            }
+        }
+    });
+    
+    // Also check when moving to next step via validation
+    const originalValidate = window.validateCurrentStep;
+    if (originalValidate) {
+        window.validateCurrentStep = function() {
+            // First run original validation
+            const isValid = originalValidate();
+            
+            // Then check B-Form if on step 1
+            const activeSection = document.querySelector('.form-section.active');
+            if (activeSection && activeSection.id === 'step-1-section') {
+                const bForm = bFormInput.value.trim();
+                if (bForm && !isBFormValid) {
+                    return false;
+                }
+            }
+            
+            return isValid;
+        };
+    }
+    
+    // Update next button when step changes
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.attributeName === 'class') {
+                updateNextButton();
+            }
+        });
+    });
+    
+    const sections = document.querySelectorAll('.form-section');
+    sections.forEach(section => {
+        observer.observe(section, { attributes: true });
+    });
+}
+
+// Call this function in your DOMContentLoaded
+// Add this line inside your existing DOMContentLoaded function:
+// initBFormCheck();
+
+
+            
             
             function validateCurrentStep() {
                 const currentSection = document.querySelector('.form-section.active');
@@ -2614,123 +2760,40 @@ nextBtn.addEventListener('click', function() {
 // 1. THE MESSAGE LISTENER - Wait for Google's response
 // ============================================
 window.addEventListener('message', function(event) {
-    // More flexible origin checking - accept all Google domains and local testing
-    const allowedOrigins = [
-        'google.com', 
-        'script.google.com', 
-        'script.googleusercontent.com',
-        'localhost', 
-        '127.0.0.1'
-    ];
-    
-    // Check if event.origin includes any allowed domain
-    const isValidOrigin = allowedOrigins.some(origin => 
-        event.origin.includes(origin)
-    );
-    
-    // If it's not a valid origin AND not from our own domain (for local testing)
-    if (!isValidOrigin && !event.origin.includes(window.location.origin)) {
-        console.log('Message from unknown origin:', event.origin);
-        // Don't block - let it through but log it
-        // We'll still process the message for debugging
+    // Safety check: Only accept messages from Google domains
+    if (!event.origin.includes('google.com') && !event.origin.includes('script.googleusercontent.com')) {
+        return;
     }
 
-    // Check if this is a response from our form submission
-    if (event.data && (event.data.success !== undefined || event.data.registrationId)) {
+    if (event.data && event.data.success) {
         const submitBtn = document.getElementById('submitBtn');
         
-        // Handle error response
-        if (event.data.success === false) {
-            console.log('Error response received:', event.data.message);
-            
-            // Show error message to user
-            submitBtn.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error: ' + (event.data.message || 'Registration failed');
-            submitBtn.style.background = 'var(--accent-danger)';
-            submitBtn.setAttribute('aria-busy', 'false');
-            
-            // Re-enable form
-            document.querySelectorAll('input, select, textarea, button').forEach(el => {
-                el.disabled = false;
-            });
-            
-            // Show error in a visible way
-            const formContainer = document.querySelector('.form-container');
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'validation-message error';
-            errorDiv.style.display = 'block';
-            errorDiv.style.margin = 'var(--space-md)';
-            errorDiv.style.padding = 'var(--space-lg)';
-            errorDiv.style.fontSize = 'var(--text-base)';
-            errorDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${event.data.message}`;
-            
-            // Remove any existing error messages
-            const existingError = formContainer.querySelector('.global-error');
-            if (existingError) existingError.remove();
-            
-            errorDiv.classList.add('global-error');
-            formContainer.insertBefore(errorDiv, formContainer.firstChild);
-            
-            // Announce to screen reader
-            if (typeof announceToScreenReader === "function") {
-                announceToScreenReader('Error: ' + event.data.message);
-            }
-            
-            return;
-        }
+        // Visual success state
+        submitBtn.innerHTML = '<i class="fas fa-check"></i> Registration Successful!';
+        submitBtn.style.background = 'var(--accent-success)';
         
-        // Handle success response
-        if (event.data.success === true || event.data.registrationId) {
-            // Visual success state
-            submitBtn.innerHTML = '<i class="fas fa-check"></i> Registration Successful!';
-            submitBtn.style.background = 'var(--accent-success)';
-            
-            if (typeof announceToScreenReader === "function") {
-                announceToScreenReader('Registration submitted successfully. ID: ' + (event.data.registrationId || ''));
-            }
-
-            // Reset form after 3 seconds
-            setTimeout(() => {
-                window.location.reload();
-            }, 3000);
+        if (typeof announceToScreenReader === "function") {
+            announceToScreenReader('Registration submitted successfully. ID: ' + event.data.registrationId);
         }
-    } else {
-        console.log('Message received but not a form response:', event.data);
+
+        // Reset form after 3 seconds
+        setTimeout(() => {
+            // Reload the page to ensure clean form
+            window.location.reload();
+        }, 3000);
+    } else if (event.data && !event.data.success) {
+        // Handle error message from script
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error: ' + (event.data.message || 'Try Again');
+        submitBtn.style.background = 'var(--accent-danger)';
+        submitBtn.setAttribute('aria-busy', 'false');
+        
+        // Re-enable form
+        document.querySelectorAll('input, select, textarea, button').forEach(el => {
+            el.disabled = false;
+        });
     }
 });
-
-
-            // ============================================
-// 3. FALLBACK ERROR DETECTION
-// ============================================
-// Check URL hash for errors (fallback method)
-function checkForErrorsInUrl() {
-    if (window.location.hash) {
-        const hash = window.location.hash.substring(1); // Remove #
-        if (hash.includes('error=duplicate')) {
-            const message = decodeURIComponent(hash.split('message=')[1] || 'B-Form already exists');
-            
-            const submitBtn = document.getElementById('submitBtn');
-            submitBtn.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error: ' + message;
-            submitBtn.style.background = 'var(--accent-danger)';
-            submitBtn.setAttribute('aria-busy', 'false');
-            
-            // Re-enable form
-            document.querySelectorAll('input, select, textarea, button').forEach(el => {
-                el.disabled = false;
-            });
-            
-            // Clear the hash
-            window.location.hash = '';
-        }
-    }
-}
-
-// Call on page load
-window.addEventListener('load', checkForErrorsInUrl);
-
-
-
-            
 
 // ============================================
 // 2. THE SUBMIT FUNCTION - Send data to Google
@@ -2826,31 +2889,18 @@ function submitForm() {
     document.body.appendChild(form);
     
     // Set a timeout in case Google doesn't respond
-const timeoutId = setTimeout(() => {
-    console.log('No response received, checking if this was a duplicate...');
-    
-    // Don't auto-assume success - check if there might be an error
-    // Instead of showing success, show a warning
-    submitBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> No Response - Check Status';
-    submitBtn.style.background = 'var(--accent-warning)';
-    submitBtn.setAttribute('aria-busy', 'false');
-    
-    // Re-enable form but show warning
-    document.querySelectorAll('input, select, textarea, button').forEach(el => {
-        el.disabled = false;
-    });
-    
-    // Show warning message
-    const warningDiv = document.createElement('div');
-    warningDiv.className = 'validation-message error';
-    warningDiv.style.display = 'block';
-    warningDiv.style.margin = 'var(--space-md)';
-    warningDiv.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Submission timeout. Please check if registration was successful. If problem persists, contact support.';
-    
-    const formContainer = document.querySelector('.form-container');
-    formContainer.insertBefore(warningDiv, formContainer.firstChild);
-    
-}, 10000); // Increase timeout to 15 seconds
+    const timeoutId = setTimeout(() => {
+        // If we haven't heard back in 10 seconds, assume success
+        // (This is a fallback - the message listener should handle it)
+        console.log('No response received, assuming success');
+        
+        submitBtn.innerHTML = '<i class="fas fa-check"></i> Registration Successful!';
+        submitBtn.style.background = 'var(--accent-success)';
+        
+        setTimeout(() => {
+            window.location.reload();
+        }, 3000);
+    }, 10000);
     
     // Listen for response and clear timeout
     const responseHandler = function(event) {
@@ -2988,75 +3038,6 @@ const timeoutId = setTimeout(() => {
                 uptimeEl.textContent = '99.9%';
                 securityEl.textContent = 'A+';
             }
-
-           // ============================================
-// B-FORM DUPLICATE CHECKER
-// ============================================
-function initBFormChecker() {
-    const bFormInput = document.getElementById('bForm');
-    const bFormStatus = document.getElementById('bFormStatus');
-    const bFormMessage = document.getElementById('bFormMessage');
-    
-    // Your Google Apps ScriptURL
-    const CHECKER_URL = 'https://script.google.com/macros/s/AKfycbxzU9QK8Yzv48fRFJda-gGttcKLNG0kKIj77F_QAMtJqwuVOLu0toq48nyI0fvwm80T/exec';
-    
-    let checkTimeout;
-    
-    bFormInput.addEventListener('input', function() {
-        // Clear previous timeout
-        clearTimeout(checkTimeout);
-        
-        // Clear previous status
-        bFormStatus.innerHTML = '';
-        bFormMessage.innerHTML = '';
-        bFormMessage.className = 'validation-message';
-        
-        // Remove error class
-        this.classList.remove('error');
-    });
-    
-    bFormInput.addEventListener('blur', function() {
-        const bForm = this.value.trim();
-        
-        // Check if B-Form is empty or invalid format
-        if (!bForm || !bForm.match(/^\d{5}-\d{7}-\d$/)) {
-            return;
-        }
-        
-        // Show loading indicator
-        bFormStatus.innerHTML = '<i class="fas fa-spinner fa-spin" style="color: #8b949e;"></i>';
-        
-        // Set timeout to avoid too many requests
-        checkTimeout = setTimeout(() => {
-            fetch(`${CHECKER_URL}?bForm=${encodeURIComponent(bForm)}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.exists) {
-                        // B-Form already exists - show error
-                        bFormStatus.innerHTML = '<i class="fas fa-times-circle" style="color: #cf222e;"></i>';
-                        bFormMessage.innerHTML = '<i class="fas fa-exclamation-circle"></i> This B-Form is already registered. You cannot proceed to next step.';
-                        bFormMessage.className = 'validation-message error';
-                        bFormInput.classList.add('error');
-                    } else {
-                        // B-Form is available - show success
-                        bFormStatus.innerHTML = '<i class="fas fa-check-circle" style="color: #1a7f37;"></i>';
-                        bFormMessage.innerHTML = '<i class="fas fa-check-circle"></i> B-Form is available';
-                        bFormMessage.className = 'validation-message success';
-                        bFormInput.classList.remove('error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error checking B-Form:', error);
-                    bFormStatus.innerHTML = '';
-                });
-        }, 500);
-    });
-}
-// Call this function when page loads
-// Add this line inside your DOMContentLoaded event (around line 360)
-// initBFormChecker();
-
-            
         })();
     </script>
 </body>
