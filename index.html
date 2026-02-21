@@ -2097,20 +2097,11 @@
             }
 
 
-            // ===== B-FORM DUPLICATE CHECK =====
+           // ===== B-FORM DUPLICATE CHECK - IMPROVED VERSION =====
 function initBFormCheck() {
     const bFormInput = document.getElementById('bForm');
     const nextBtn = document.getElementById('nextBtn');
-    
-    // Get the current step variable (it's defined in your existing code)
-    // We need to access it from the outer scope
-    let currentStep;
-    let totalSteps;
-    
-    // Try to get these variables from the existing code
-    // This is a bit hacky but will work for now
-    const steps = document.querySelectorAll('.progress-step');
-    totalSteps = steps.length;
+    const submitBtn = document.getElementById('submitBtn');
     
     // Create validation message container if it doesn't exist
     let validationContainer = document.getElementById('bFormValidation');
@@ -2124,77 +2115,70 @@ function initBFormCheck() {
     // Track check state
     let isBFormValid = true;
     let checkTimeout = null;
+    let lastCheckedBForm = '';
     
     // Function to update next button state
-    function updateNextButton() {
-        // Get current step from the active section
+    function updateNextButtonState() {
         const activeSection = document.querySelector('.form-section.active');
         if (activeSection && activeSection.id === 'step-1-section') {
-            if (!isBFormValid && bFormInput.value.trim() !== '') {
+            const bForm = bFormInput.value.trim();
+            
+            if (bForm && !isBFormValid) {
                 nextBtn.disabled = true;
-                nextBtn.title = 'Cannot proceed: B-Form already exists';
                 nextBtn.style.opacity = '0.5';
                 nextBtn.style.cursor = 'not-allowed';
+                nextBtn.title = 'Cannot proceed: B-Form already exists';
             } else {
                 nextBtn.disabled = false;
-                nextBtn.title = '';
                 nextBtn.style.opacity = '1';
                 nextBtn.style.cursor = 'pointer';
+                nextBtn.title = '';
             }
         }
     }
     
-    // Check B-Form when user types
-    bFormInput.addEventListener('input', function() {
-        // Clear previous timeout
-        if (checkTimeout) {
-            clearTimeout(checkTimeout);
-        }
+    // Function to check B-Form using fetch API
+    async function checkBFormWithFetch(bForm) {
+        // Your Google Apps Script Web App URL
+        const scriptUrl = 'https://script.google.com/macros/s/AKfycbxzU9QK8Yzv48fRFJda-gGttcKLNG0kKIj77F_QAMtJqwuVOLu0toq48nyI0fvwm80T/exec';
         
-        const bForm = this.value.trim();
-        
-        // Clear validation if empty
-        if (!bForm) {
-            validationContainer.innerHTML = '';
+        try {
+            // Show checking state
+            validationContainer.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking B-Form...';
             validationContainer.className = 'validation-message';
             bFormInput.classList.remove('error', 'success');
-            isBFormValid = true;
-            updateNextButton();
-            return;
+            
+            // Use fetch with no-cors mode to avoid CORS issues
+            const response = await fetch(`${scriptUrl}?action=checkBForm&bForm=${encodeURIComponent(bForm)}`, {
+                method: 'GET',
+                mode: 'no-cors', // This helps with CORS but has limitations
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            // With no-cors, we can't read the response directly
+            // So we need to use a different approach - JSONP
+            
+            // Fallback to JSONP method
+            checkBFormWithJSONP(bForm);
+            
+        } catch (error) {
+            console.error('Fetch error:', error);
+            // Fallback to JSONP
+            checkBFormWithJSONP(bForm);
         }
-        
-        // Check format first
-        const bFormPattern = /^\d{5}-\d{7}-\d$/;
-        if (!bFormPattern.test(bForm)) {
-            validationContainer.innerHTML = '<i class="fas fa-exclamation-circle"></i> Format: XXXXX-XXXXXXX-X';
-            validationContainer.className = 'validation-message error';
-            bFormInput.classList.add('error');
-            bFormInput.classList.remove('success');
-            isBFormValid = false;
-            updateNextButton();
-            return;
-        }
-        
-        // Show checking indicator
-        validationContainer.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking B-Form...';
-        validationContainer.className = 'validation-message';
-        bFormInput.classList.remove('error', 'success');
-        
-        // Wait 500ms after user stops typing, then check
-        checkTimeout = setTimeout(function() {
-            checkBFormDuplicate(bForm);
-        }, 500);
-    });
+    }
     
-    // Function to check duplicate
-    function checkBFormDuplicate(bForm) {
-        // Your Google Apps Script Web App URL (use the same one from your form)
+    // JSONP method (more reliable for cross-domain requests)
+    function checkBFormWithJSONP(bForm) {
+        // Your Google Apps Script Web App URL
         const scriptUrl = 'https://script.google.com/macros/s/AKfycbxzU9QK8Yzv48fRFJda-gGttcKLNG0kKIj77F_QAMtJqwuVOLu0toq48nyI0fvwm80T/exec';
         
         // Create a unique callback name
         const callbackName = 'bform_callback_' + Date.now();
         
-        // Create a script element for JSONP (this avoids CORS issues)
+        // Create a script element for JSONP
         const script = document.createElement('script');
         
         // Define callback function
@@ -2212,6 +2196,7 @@ function initBFormCheck() {
                 bFormInput.classList.add('error');
                 bFormInput.classList.remove('success');
                 isBFormValid = false;
+                lastCheckedBForm = bForm;
                 
                 // Announce for screen readers
                 if (typeof announceToScreenReader === 'function') {
@@ -2224,6 +2209,7 @@ function initBFormCheck() {
                 bFormInput.classList.add('success');
                 bFormInput.classList.remove('error');
                 isBFormValid = true;
+                lastCheckedBForm = bForm;
             } else {
                 // Error or unexpected response
                 validationContainer.innerHTML = '<i class="fas fa-exclamation-circle"></i> Could not verify B-Form. Please try again.';
@@ -2234,7 +2220,7 @@ function initBFormCheck() {
             }
             
             // Update next button
-            updateNextButton();
+            updateNextButtonState();
         };
         
         // Handle errors
@@ -2247,7 +2233,9 @@ function initBFormCheck() {
             bFormInput.classList.add('error');
             bFormInput.classList.remove('success');
             isBFormValid = false;
-            updateNextButton();
+            updateNextButtonState();
+            
+            console.error('JSONP script error - network issue');
         };
         
         // Build URL with parameters
@@ -2260,10 +2248,56 @@ function initBFormCheck() {
         document.body.appendChild(script);
     }
     
+    // Main input event handler
+    bFormInput.addEventListener('input', function() {
+        // Clear previous timeout
+        if (checkTimeout) {
+            clearTimeout(checkTimeout);
+        }
+        
+        const bForm = this.value.trim();
+        
+        // Clear validation if empty
+        if (!bForm) {
+            validationContainer.innerHTML = '';
+            validationContainer.className = 'validation-message';
+            bFormInput.classList.remove('error', 'success');
+            isBFormValid = true;
+            lastCheckedBForm = '';
+            updateNextButtonState();
+            return;
+        }
+        
+        // Check format first (Pakistan B-Form format: XXXXX-XXXXXXX-X)
+        const bFormPattern = /^\d{5}-\d{7}-\d$/;
+        if (!bFormPattern.test(bForm)) {
+            validationContainer.innerHTML = '<i class="fas fa-exclamation-circle"></i> Format: XXXXX-XXXXXXX-X';
+            validationContainer.className = 'validation-message error';
+            bFormInput.classList.add('error');
+            bFormInput.classList.remove('success');
+            isBFormValid = false;
+            updateNextButtonState();
+            return;
+        }
+        
+        // Don't re-check if it's the same B-Form
+        if (bForm === lastCheckedBForm) {
+            return;
+        }
+        
+        // Show checking indicator
+        validationContainer.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking B-Form...';
+        validationContainer.className = 'validation-message';
+        bFormInput.classList.remove('error', 'success');
+        
+        // Wait 500ms after user stops typing, then check
+        checkTimeout = setTimeout(function() {
+            checkBFormWithJSONP(bForm); // Use JSONP method
+        }, 500);
+    });
+    
     // Override the next button click for Step 1
-    const originalNextHandler = nextBtn.onclick;
     nextBtn.addEventListener('click', function(e) {
-        // Find current step
         const activeSection = document.querySelector('.form-section.active');
         
         // If we're on step 1 and B-Form is invalid, prevent moving forward
@@ -2273,6 +2307,7 @@ function initBFormCheck() {
             if (bForm && !isBFormValid) {
                 e.preventDefault();
                 e.stopPropagation();
+                e.stopImmediatePropagation();
                 
                 validationContainer.innerHTML = '<i class="fas fa-exclamation-circle"></i> Cannot proceed: This B-Form is already registered';
                 validationContainer.className = 'validation-message error';
@@ -2281,44 +2316,20 @@ function initBFormCheck() {
                 if (typeof announceToScreenReader === 'function') {
                     announceToScreenReader('Cannot proceed: This B-Form is already registered');
                 }
+                
+                // Don't trigger the original next button handler
                 return false;
             }
         }
-    });
+        
+        // Let the original handler run
+        return true;
+    }, true); // Use capturing to ensure this runs first
     
-    // Also check when moving to next step via validation
-    const originalValidate = window.validateCurrentStep;
-    if (originalValidate) {
-        window.validateCurrentStep = function() {
-            // First run original validation
-            const isValid = originalValidate();
-            
-            // Then check B-Form if on step 1
-            const activeSection = document.querySelector('.form-section.active');
-            if (activeSection && activeSection.id === 'step-1-section') {
-                const bForm = bFormInput.value.trim();
-                if (bForm && !isBFormValid) {
-                    return false;
-                }
-            }
-            
-            return isValid;
-        };
-    }
+    // Initial update
+    updateNextButtonState();
     
-    // Update next button when step changes
-    const observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-            if (mutation.attributeName === 'class') {
-                updateNextButton();
-            }
-        });
-    });
-    
-    const sections = document.querySelectorAll('.form-section');
-    sections.forEach(section => {
-        observer.observe(section, { attributes: true });
-    });
+    console.log('B-Form check initialized');
 }
 
 // Call this function in your DOMContentLoaded
