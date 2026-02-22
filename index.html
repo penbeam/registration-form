@@ -2097,151 +2097,120 @@
             }
 
 
-           // ===== PROFESSIONAL B-FORM CHECK - FETCH API =====
+           // ===== SIMPLE B-FORM CHECK - ONE CLEAN SOLUTION =====
 function initBFormCheck() {
     const bFormInput = document.getElementById('bForm');
     const nextBtn = document.getElementById('nextBtn');
     
-    // Create status message element
-    let statusElement = document.getElementById('bform-status-msg');
-    if (!statusElement) {
-        statusElement = document.createElement('div');
-        statusElement.id = 'bform-status-msg';
-        statusElement.className = 'validation-message';
-        bFormInput.parentNode.appendChild(statusElement);
+    // Create ONE message element
+    let messageEl = document.getElementById('bform-message');
+    if (!messageEl) {
+        messageEl = document.createElement('div');
+        messageEl.id = 'bform-message';
+        messageEl.style.marginTop = '8px';
+        messageEl.style.fontSize = '14px';
+        messageEl.style.padding = '6px 10px';
+        messageEl.style.borderRadius = '6px';
+        messageEl.style.transition = 'all 0.3s ease';
+        bFormInput.parentNode.appendChild(messageEl);
     }
     
     // Your Google Apps Script URL
     const scriptUrl = 'https://script.google.com/macros/s/AKfycby901e5Zfx5Wcac79sPera7-kUyKyUVFWWEb3W_auZNZYQjdXBuVeSfQWwqOyHfrINM/exec';
     
-    // State management
-    let isValidBForm = true;
     let checkTimeout = null;
     
-    // Function to update next button
-    function updateNextButton() {
-        const activeSection = document.querySelector('.form-section.active');
-        if (activeSection && activeSection.id === 'step-1-section') {
-            if (!isValidBForm && bFormInput.value.trim() !== '') {
-                nextBtn.disabled = true;
-                nextBtn.style.opacity = '0.5';
-                nextBtn.style.cursor = 'not-allowed';
-            } else {
-                nextBtn.disabled = false;
-                nextBtn.style.opacity = '1';
-                nextBtn.style.cursor = 'pointer';
-            }
-        }
-    }
-    
-    // Main check function using Fetch API
+    // Function to check B-Form
     async function checkBForm(bForm) {
         try {
-            // Show checking state
-            statusElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking B-Form...';
-            statusElement.style.color = 'var(--text-secondary)';
-            bFormInput.style.borderColor = 'var(--border-color)';
+            // Show checking
+            messageEl.innerHTML = '⏳ Checking B-Form...';
+            messageEl.style.backgroundColor = '#f0f0f0';
+            messageEl.style.color = '#666';
+            messageEl.style.border = '1px solid #ddd';
             
-            // Make fetch request
             const response = await fetch(`${scriptUrl}?action=checkBForm&bForm=${encodeURIComponent(bForm)}`);
             const data = await response.json();
             
-            console.log('B-Form API Response:', data);
-            
             if (data.success && data.exists === true) {
-                // B-Form exists - ERROR
-                statusElement.innerHTML = '<i class="fas fa-times-circle"></i> ' + data.message;
-                statusElement.style.color = 'var(--accent-danger)';
-                bFormInput.style.borderColor = 'var(--accent-danger)';
-                isValidBForm = false;
+                // DUPLICATE - Show error, disable next
+                messageEl.innerHTML = '❌ This B-Form is already registered';
+                messageEl.style.backgroundColor = '#ffebee';
+                messageEl.style.color = '#c62828';
+                messageEl.style.border = '1px solid #ef5350';
+                bFormInput.style.borderColor = '#c62828';
+                nextBtn.disabled = true;
                 
-                if (typeof announceToScreenReader === 'function') {
-                    announceToScreenReader('This B-Form is already registered');
-                }
-            } 
-            else if (data.success && data.exists === false) {
-                // B-Form available - SUCCESS
-                statusElement.innerHTML = '<i class="fas fa-check-circle"></i> ' + data.message;
-                statusElement.style.color = 'var(--accent-success)';
-                bFormInput.style.borderColor = 'var(--accent-success)';
-                isValidBForm = true;
-            } 
-            else {
-                // API error
-                statusElement.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + (data.error || 'Could not verify B-Form');
-                statusElement.style.color = 'var(--accent-danger)';
-                bFormInput.style.borderColor = 'var(--accent-danger)';
-                isValidBForm = false;
+            } else if (data.success && data.exists === false) {
+                // UNIQUE - Show success, enable next
+                messageEl.innerHTML = '✅ B-Form is available';
+                messageEl.style.backgroundColor = '#e8f5e9';
+                messageEl.style.color = '#2e7d32';
+                messageEl.style.border = '1px solid #66bb6a';
+                bFormInput.style.borderColor = '#2e7d32';
+                nextBtn.disabled = false;
+                
+            } else {
+                // Error
+                messageEl.innerHTML = '⚠️ Could not verify. Please try again.';
+                messageEl.style.backgroundColor = '#fff3e0';
+                messageEl.style.color = '#ef6c00';
+                messageEl.style.border = '1px solid #ff9800';
             }
             
-            updateNextButton();
-            
         } catch (error) {
-            console.error('Fetch error:', error);
-            statusElement.innerHTML = '<i class="fas fa-exclamation-circle"></i> Network error. Please check your connection.';
-            statusElement.style.color = 'var(--accent-danger)';
-            bFormInput.style.borderColor = 'var(--accent-danger)';
-            isValidBForm = false;
-            updateNextButton();
+            messageEl.innerHTML = '⚠️ Network error. Please check connection.';
+            messageEl.style.backgroundColor = '#ffebee';
+            messageEl.style.color = '#c62828';
+            messageEl.style.border = '1px solid #ef5350';
         }
     }
     
-    // Input event with debounce
+    // Input event
     bFormInput.addEventListener('input', function() {
-        // Clear previous timeout
-        if (checkTimeout) {
-            clearTimeout(checkTimeout);
-        }
+        if (checkTimeout) clearTimeout(checkTimeout);
         
         const bForm = this.value.trim();
         
-        // Clear validation if empty
+        // Clear if empty
         if (!bForm) {
-            statusElement.innerHTML = '';
-            bFormInput.style.borderColor = 'var(--border-color)';
-            isValidBForm = true;
-            updateNextButton();
+            messageEl.innerHTML = '';
+            messageEl.style.backgroundColor = 'transparent';
+            messageEl.style.border = 'none';
+            bFormInput.style.borderColor = '';
+            nextBtn.disabled = false;
             return;
         }
         
-        // Check format first
+        // Check format
         const bFormPattern = /^\d{5}-\d{7}-\d$/;
         if (!bFormPattern.test(bForm)) {
-            statusElement.innerHTML = '<i class="fas fa-exclamation-circle"></i> Format: XXXXX-XXXXXXX-X';
-            statusElement.style.color = 'var(--accent-danger)';
-            bFormInput.style.borderColor = 'var(--accent-danger)';
-            isValidBForm = false;
-            updateNextButton();
+            messageEl.innerHTML = '⚠️ Format: XXXXX-XXXXXXX-X';
+            messageEl.style.backgroundColor = '#fff3e0';
+            messageEl.style.color = '#ef6c00';
+            messageEl.style.border = '1px solid #ff9800';
+            bFormInput.style.borderColor = '#ef6c00';
+            nextBtn.disabled = true;
             return;
         }
         
-        // Wait 500ms after user stops typing, then check
-        checkTimeout = setTimeout(() => {
-            checkBForm(bForm);
-        }, 500);
+        // Check after 500ms
+        checkTimeout = setTimeout(() => checkBForm(bForm), 500);
     });
     
-    // Override next button click for step 1
+    // Prevent next if duplicate
     nextBtn.addEventListener('click', function(e) {
         const activeSection = document.querySelector('.form-section.active');
-        
         if (activeSection && activeSection.id === 'step-1-section') {
-            const bForm = bFormInput.value.trim();
-            
-            if (bForm && !isValidBForm) {
+            if (messageEl.innerHTML.includes('❌') || messageEl.innerHTML.includes('⚠️ Format')) {
                 e.preventDefault();
                 e.stopPropagation();
-                
-                statusElement.innerHTML = '<i class="fas fa-exclamation-circle"></i> Cannot proceed: This B-Form is already registered';
-                statusElement.style.color = 'var(--accent-danger)';
-                bFormInput.style.borderColor = 'var(--accent-danger)';
-                
                 return false;
             }
         }
     });
     
-    console.log('✅ B-Form check initialized with Fetch API');
+    console.log('✅ B-Form check ready');
 }
 
 // Call this function in your DOMContentLoaded
