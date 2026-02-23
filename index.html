@@ -2325,91 +2325,98 @@ function initBFormCheck() {
                 return /^\d{5}-\d{7}-\d$/.test(cnic);
             }
             
-            // ===== FILE UPLOAD =====
-            function initFileUpload() {
-                const fileUploadArea = document.getElementById('photoUploadArea');
-                const fileInput = document.getElementById('photoUpload');
-                const maxSize = 2 * 1024 * 1024; // 2MB
-                
-                // Click to upload
-                fileUploadArea.addEventListener('click', function() {
-                    fileInput.click();
-                });
-                
-                // Drag and drop
-                fileUploadArea.addEventListener('dragover', function(e) {
-                    e.preventDefault();
-                    this.classList.add('dragover');
-                });
-                
-                fileUploadArea.addEventListener('dragleave', function() {
-                    this.classList.remove('dragover');
-                });
-                
-                fileUploadArea.addEventListener('drop', function(e) {
-                    e.preventDefault();
-                    this.classList.remove('dragover');
-                    
-                    if (e.dataTransfer.files.length) {
-                        handleFileSelect(e.dataTransfer.files[0]);
-                    }
-                });
-                
-                // File input change
-                fileInput.addEventListener('change', function() {
-                    if (this.files.length) {
-                        handleFileSelect(this.files[0]);
-                    }
-                });
-                
-                function handleFileSelect(file) {
-                    // Validate file
-                    if (!file.type.match('image.*')) {
-                        showFileError('Please select an image file (JPG, PNG)');
-                        return;
-                    }
-                    
-                    if (file.size > maxSize) {
-                        showFileError('File size exceeds 2MB limit');
-                        return;
-                    }
-                    
-                    // Preview file
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        fileUploadArea.innerHTML = `
-                            <div class="file-upload-icon">
-                                <i class="fas fa-check-circle"></i>
-                            </div>
-                            <div class="file-upload-text">${file.name}</div>
-                            <div class="file-upload-subtext">${(file.size / 1024 / 1024).toFixed(2)} MB • Click to change</div>
-                        `;
-                        
-                        // Reattach events
-                        fileUploadArea.addEventListener('click', function() {
-                            fileInput.click();
-                        });
-                    };
-                    
-                    reader.readAsDataURL(file);
-                    
-                    // Update validation
-                    const validationEl = document.getElementById('photoValidation');
-                    showValidationSuccess(fileInput, validationEl);
-                }
-                
-                function showFileError(message) {
-                    fileUploadArea.innerHTML = `
-                        <div class="file-upload-icon">
-                            <i class="fas fa-exclamation-circle"></i>
-                        </div>
-                        <div class="file-upload-text">${message}</div>
-                        <div class="file-upload-subtext">Click to try again</div>
-                    `;
-                    
-                    fileInput.value = '';
-                }
-            }
+            // ===== FILE UPLOAD WITH BASE64 CAPTURE =====
+function initFileUpload() {
+    const fileUploadArea = document.getElementById('photoUploadArea');
+    const fileInput = document.getElementById('photoUpload');
+    const maxSize = 2 * 1024 * 1024; // 2MB
+    
+    // Click to upload
+    fileUploadArea.addEventListener('click', function() {
+        fileInput.click();
+    });
+    
+    // Drag and drop
+    fileUploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        this.classList.add('dragover');
+    });
+    
+    fileUploadArea.addEventListener('dragleave', function() {
+        this.classList.remove('dragover');
+    });
+    
+    fileUploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        this.classList.remove('dragover');
+        
+        if (e.dataTransfer.files.length) {
+            handleFileSelect(e.dataTransfer.files[0]);
+        }
+    });
+    
+    // File input change
+    fileInput.addEventListener('change', function() {
+        if (this.files.length) {
+            handleFileSelect(this.files[0]);
+        }
+    });
+    
+    function handleFileSelect(file) {
+        // Validate file
+        if (!file.type.match('image.*')) {
+            showFileError('Please select an image file (JPG, PNG)');
+            return;
+        }
+        
+        if (file.size > maxSize) {
+            showFileError('File size exceeds 2MB limit');
+            return;
+        }
+        
+        // Preview and capture base64
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const base64Data = e.target.result;
+            
+            // Store in global variable for submission
+            window.studentPhotoBase64 = base64Data;
+            
+            // Update UI
+            fileUploadArea.innerHTML = `
+                <div class="file-upload-icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="file-upload-text">${file.name}</div>
+                <div class="file-upload-subtext">${(file.size / 1024 / 1024).toFixed(2)} MB • Click to change</div>
+            `;
+            
+            // Reattach click event
+            fileUploadArea.addEventListener('click', function() {
+                fileInput.click();
+            });
+        };
+        
+        reader.readAsDataURL(file);
+        
+        // Update validation
+        const validationEl = document.getElementById('photoValidation');
+        showValidationSuccess(fileInput, validationEl);
+    }
+    
+    function showFileError(message) {
+        fileUploadArea.innerHTML = `
+            <div class="file-upload-icon">
+                <i class="fas fa-exclamation-circle"></i>
+            </div>
+            <div class="file-upload-text">${message}</div>
+            <div class="file-upload-subtext">Click to try again</div>
+        `;
+        
+        fileInput.value = '';
+        window.studentPhotoBase64 = '';
+    }
+}
             
             // ===== INPUT FORMATTING =====
             function initInputFormatting() {
@@ -2725,6 +2732,7 @@ function submitForm() {
         lastSchoolName: document.getElementById('lastSchoolName')?.value || '',
         grNumber: document.getElementById('grNumber')?.value || '',
         photoUpload: document.getElementById('photoUpload')?.files[0]?.name || '',
+        photoData: window.studentPhotoBase64 || '',  
         
         // === PARENT INFORMATION ===
         fatherName: document.getElementById('fatherName')?.value || '',
